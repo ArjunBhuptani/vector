@@ -17,23 +17,27 @@ import {
   WithdrawState,
   WithdrawStateEncoding,
 } from "./withdraw";
+import { CrosschainTransferName, CrosschainTransferResolver, CrosschainTransferState } from "./crosschain";
 
 // Must be updated when adding a new transfer
 export const TransferNames = {
   [HashlockTransferName]: HashlockTransferName,
   [WithdrawName]: WithdrawName,
+  [CrosschainTransferName]: CrosschainTransferName,
 } as const;
 
 // Must be updated when adding a new transfer
 export interface TransferResolverMap {
   [HashlockTransferName]: HashlockTransferResolver;
   [WithdrawName]: WithdrawResolver;
+  [CrosschainTransferName]: CrosschainTransferResolver;
 }
 
 // Must be updated when adding a new transfer
 export interface TransferStateMap {
   [HashlockTransferName]: HashlockTransferState;
   [WithdrawName]: WithdrawState;
+  [CrosschainTransferName]: CrosschainTransferState;
 }
 
 // Must be updated when adding a new transfer

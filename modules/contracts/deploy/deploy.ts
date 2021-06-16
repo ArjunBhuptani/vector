@@ -68,6 +68,7 @@ const func: DeployFunction = async () => {
     ["ChannelFactory", ["ChannelMastercopy", Zero]],
     ["HashlockTransfer", []],
     ["Withdraw", []],
+    ["CrosschainTransfer", []],
     ["TransferRegistry", []],
     ["TestToken", []],
   ];
@@ -93,7 +94,7 @@ const func: DeployFunction = async () => {
 
     // Default: run standard migration
   } else {
-    log.info(`Running testnet migration`);
+    log.info(`Running standard migration`);
     for (const row of standardMigration) {
       const name = row[0] as string;
       const args = row[1] as Array<string | BigNumber>;
@@ -101,6 +102,7 @@ const func: DeployFunction = async () => {
     }
     await registerTransfer("Withdraw", deployer);
     await registerTransfer("HashlockTransfer", deployer);
+    await registerTransfer("CrosschainTransfer", deployer);
   }
 
   if ([1337, 5].includes(network.config.chainId ?? 0)) {

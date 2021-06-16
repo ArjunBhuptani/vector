@@ -106,6 +106,8 @@ export class ParameterConversionError extends EngineError {
     FeeGreaterThanAmount: "Fees charged are greater than amount",
     NoOp: "Cannot create withdrawal with 0 amount and no call",
     WithdrawToZero: "Cannot withdraw to AddressZero",
+    ChannelNotFound: "Channel not found",
+    TransferNotFound: "Transfer not found",
   } as const;
 
   constructor(

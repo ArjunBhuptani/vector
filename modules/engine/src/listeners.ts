@@ -1036,6 +1036,23 @@ export const isWithdrawTransfer = async (
   return Result.ok(transfer.transferDefinition === definition);
 };
 
+export const isCrosschainTransfer = async (
+  transfer: FullTransferState,
+  chainAddresses: ChainAddresses,
+  chainService: IVectorChainReader,
+): Promise<Result<boolean, ChainError>> => {
+  const crosschainInfo = await chainService.getRegisteredTransferByName(
+    TransferNames.CrosschainTransfer,
+    chainAddresses[transfer.chainId].transferRegistryAddress,
+    transfer.chainId,
+  );
+  if (crosschainInfo.isError) {
+    return Result.fail(crosschainInfo.getError()!);
+  }
+  const { definition } = crosschainInfo.getValue();
+  return Result.ok(transfer.transferDefinition === definition);
+};
+
 export const resolveWithdrawal = async (
   channelState: FullChannelState,
   transfer: FullTransferState,

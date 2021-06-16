@@ -10,6 +10,10 @@ import {
   getRandomBytes32,
   mkPublicIdentifier,
   mkAddress,
+  createTestFullHashlockTransferState,
+  createTestFullCrosschainTransferState,
+  createTestChannelState,
+  ChannelSigner,
 } from "@connext/vector-utils";
 import Sinon from "sinon";
 
@@ -35,12 +39,12 @@ describe("VectorEngine", () => {
   const validAddress = mkAddress("0xc");
   const invalidAddress = "abc";
 
-  let storeService: IEngineStore;
+  let storeService: Sinon.SinonStubbedInstance<IEngineStore>;
   let chainService: Sinon.SinonStubbedInstance<VectorChainService>;
   beforeEach(() => {
-    storeService = Sinon.createStubInstance(MemoryStoreService, {
-      getChannelStates: Promise.resolve([]),
-    });
+    storeService = Sinon.createStubInstance(MemoryStoreService);
+    storeService.getChannelStates.resolves([]);
+    storeService.getTransferState.resolves(createTestFullHashlockTransferState());
     chainService = Sinon.createStubInstance(VectorChainService);
 
     chainService.getChainProviders.returns(Result.ok(env.chainProviders));

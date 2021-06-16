@@ -28,9 +28,10 @@ import {
   MinimalTransaction,
   WITHDRAWAL_RESOLVED_EVENT,
   VectorErrorJson,
+  FullTransferState,
 } from "@connext/vector-types";
 import {
-  generateMerkleTreeData,
+  recoverAddressFromChannelMessage,
   validateChannelUpdateSignatures,
   getSignerAddressFromPublicIdentifier,
   getRandomBytes32,
@@ -41,6 +42,7 @@ import {
 import pino from "pino";
 import Ajv from "ajv";
 import { Evt } from "evt";
+import { BigNumber } from "@ethersproject/bignumber";
 
 import { version } from "../package.json";
 
@@ -51,7 +53,7 @@ import {
   convertSetupParams,
   convertWithdrawParams,
 } from "./paramConverter";
-import { setupEngineListeners } from "./listeners";
+import { isCrosschainTransfer, setupEngineListeners } from "./listeners";
 import { getEngineEvtContainer, withdrawRetryForTransferId, addTransactionToCommitment } from "./utils";
 import { sendIsAlive } from "./isAlive";
 import { WithdrawCommitment } from "@connext/vector-contracts";
@@ -885,11 +887,17 @@ export class VectorEngine implements IVectorEngine {
       );
     }
 
-    const transferRes = await this.getTransferState({ transferId: params.transferId });
-    if (transferRes.isError) {
-      return Result.fail(transferRes.getError()!);
+    let transfer: FullTransferState | undefined;
+    try {
+      transfer = await this.store.getTransferState(params.transferId);
+    } catch (e) {
+      return Result.fail(
+        new RpcError(RpcError.reasons.TransferNotFound, params.channelAddress ?? "", this.publicIdentifier, {
+          transferId: params.transferId,
+          getTransferStateError: jsonifyError(e),
+        }),
+      );
     }
-    const transfer = transferRes.getValue();
     if (!transfer) {
       return Result.fail(
         new RpcError(RpcError.reasons.TransferNotFound, params.channelAddress ?? "", this.publicIdentifier, {

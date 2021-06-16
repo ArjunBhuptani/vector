@@ -15,6 +15,8 @@ import {
   DEFAULT_CHANNEL_TIMEOUT,
   SetupParams,
   IVectorChainReader,
+  IEngineStore,
+  IChannelSigner,
 } from "@connext/vector-types";
 import {
   createTestChannelState,
@@ -27,12 +29,15 @@ import {
   ChannelSigner,
   NatsMessagingService,
   mkPublicIdentifier,
+  MemoryStoreService,
+  createTestFullCrosschainTransferState,
+  getRandomChannelSigner,
+  mkSig,
 } from "@connext/vector-utils";
 import { expect } from "chai";
-import Sinon from "sinon";
+import Sinon, { SinonStub, stub } from "sinon";
 import { VectorChainReader, WithdrawCommitment } from "@connext/vector-contracts";
 import { getAddress } from "@ethersproject/address";
-import { BigNumber } from "@ethersproject/bignumber";
 import { AddressZero } from "@ethersproject/constants";
 
 import {
@@ -42,6 +47,7 @@ import {
   convertWithdrawParams,
 } from "../paramConverter";
 import { ParameterConversionError } from "../errors";
+import * as listeners from "../listeners";
 
 import { env } from "./env";
 
@@ -67,12 +73,16 @@ describe("ParamConverter", () => {
   let signerA: Sinon.SinonStubbedInstance<ChannelSigner>;
   let signerB: Sinon.SinonStubbedInstance<ChannelSigner>;
   let messaging: Sinon.SinonStubbedInstance<NatsMessagingService>;
+  let store: Sinon.SinonStubbedInstance<IEngineStore>;
 
   const setDefaultStubs = (registryInfo: RegisteredTransfer = transferRegisteredInfo) => {
     chainReader = Sinon.createStubInstance(VectorChainReader);
     signerA = Sinon.createStubInstance(ChannelSigner);
     signerB = Sinon.createStubInstance(ChannelSigner);
     messaging = Sinon.createStubInstance(NatsMessagingService);
+    store = Sinon.createStubInstance(MemoryStoreService);
+    store.getTransferState.resolves(createTestFullHashlockTransferState());
+    store.getChannelState.resolves(createTestChannelState("create").channel);
 
     signerA.signMessage.resolves("success");
     signerB.signMessage.resolves("success");
@@ -551,6 +561,7 @@ describe("ParamConverter", () => {
   });
 
   describe("convertResolveConditionParams", () => {
+    let isCrosschainTransfer: SinonStub;
     const generateParams = (): EngineParams.ResolveTransfer => {
       setDefaultStubs();
       return {
@@ -565,12 +576,19 @@ describe("ParamConverter", () => {
       };
     };
 
+    beforeEach(() => {
+      isCrosschainTransfer = stub(listeners, "isCrosschainTransfer");
+      isCrosschainTransfer.resolves(Result.ok(false));
+    });
+
     it("should work", async () => {
       const params = generateParams();
       const transferState: FullTransferState = createTestFullHashlockTransferState({
         channelAddress: params.channelAddress,
       });
-      const ret: ResolveTransferParams = convertResolveConditionParams(params, transferState).getValue();
+      const ret: ResolveTransferParams = (
+        await convertResolveConditionParams(params, transferState, signerA, chainAddresses, chainReader as any, store)
+      ).getValue();
       expect(ret).to.deep.eq({
         channelAddress: params.channelAddress,
         transferId: transferState.transferId,
@@ -581,6 +599,126 @@ describe("ParamConverter", () => {
           ...transferState.meta,
           ...params.meta,
         },
+      });
+    });
+
+    describe("is crosschain transfer", () => {
+      let transfer: FullTransferState<any>;
+      let channel: FullChannelState;
+      let alice: IChannelSigner;
+      let bob: ChannelSigner;
+      let defaultParams: any;
+      let responderSignature: string;
+      let initiatorSignature: string;
+      beforeEach(async () => {
+        defaultParams = generateParams();
+        isCrosschainTransfer.resolves(Result.ok(true));
+        alice = getRandomChannelSigner();
+        bob = getRandomChannelSigner();
+        channel = createTestChannelState("create").channel;
+        channel.alice = alice.address;
+        channel.bob = bob.address;
+        transfer = createTestFullCrosschainTransferState();
+
+        const commitment = new WithdrawCommitment(
+          channel.channelAddress,
+          channel.alice,
+          channel.bob,
+          channel.bob,
+          transfer.assetId,
+          transfer.balance.amount[0],
+          "1",
+        );
+        console.log("commitment:", commitment.toJson());
+        initiatorSignature = await alice.signMessage(commitment.hashToSign());
+        responderSignature = await bob.signMessage(commitment.hashToSign());
+
+        transfer.transferState.initiatorSignature = initiatorSignature;
+        transfer.transferState.callData = undefined;
+        transfer.transferState.callTo = undefined;
+        transfer.transferState.data = commitment.hashToSign();
+        transfer.transferState.initiator = channel.alice;
+        transfer.transferState.responder = channel.bob;
+
+        store.getTransferState.resolves(transfer);
+        store.getChannelState.resolves(channel);
+      });
+
+      it("should fail if get channel errors", async () => {
+        store.getChannelState.rejects("Blah");
+
+        const res = await convertResolveConditionParams(
+          {
+            transferId: getRandomBytes32(),
+            channelAddress: mkAddress(),
+            transferResolver: { preImage: getRandomBytes32() },
+          },
+          transfer,
+          alice,
+          chainAddresses,
+          chainReader as any,
+          store,
+        );
+        expect(res.isError).to.be.true;
+        expect(res.getError()?.message).to.eq(ParameterConversionError.reasons.ChannelNotFound);
+      });
+
+      it("should fail if channel not found", async () => {
+        store.getChannelState.resolves(undefined);
+        const res = await convertResolveConditionParams(
+          {
+            transferId: getRandomBytes32(),
+            channelAddress: mkAddress(),
+            transferResolver: { preImage: getRandomBytes32() },
+          },
+          transfer,
+          alice,
+          chainAddresses,
+          chainReader as any,
+          store,
+        );
+        expect(res.isError).to.be.true;
+        expect(res.getError()?.message).to.eq(ParameterConversionError.reasons.ChannelNotFound);
+      });
+
+      it("should use provided resolver sig if it's valid", async () => {
+        const preImage = getRandomBytes32();
+
+        const res = await convertResolveConditionParams(
+          {
+            transferId: getRandomBytes32(),
+            channelAddress: mkAddress(),
+            transferResolver: { preImage, responderSignature },
+          },
+          transfer,
+          bob,
+          chainAddresses,
+          chainReader as any,
+          store,
+        );
+
+        expect(res.isError).to.be.false;
+        expect(res.getValue()).to.deep.contain({ transferResolver: { preImage, responderSignature } });
+      });
+
+      it("should use regenerate resolver sig if it's not valid", async () => {
+        const preImage = getRandomBytes32();
+
+        const res = await convertResolveConditionParams(
+          {
+            transferId: getRandomBytes32(),
+            channelAddress: mkAddress(),
+            transferResolver: { preImage, responderSignature: mkSig() },
+          },
+          transfer,
+          bob,
+          chainAddresses,
+          chainReader as any,
+          store,
+        );
+
+        expect(res.isError).to.be.false;
+        expect(res.getValue()).to.deep.contain({ transferResolver: { preImage, responderSignature } });
       });
     });
   });

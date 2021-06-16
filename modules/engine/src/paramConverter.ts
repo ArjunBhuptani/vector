@@ -1,5 +1,9 @@
 import { WithdrawCommitment } from "@connext/vector-contracts";
-import { getRandomBytes32, getSignerAddressFromPublicIdentifier } from "@connext/vector-utils";
+import {
+  getRandomBytes32,
+  getSignerAddressFromPublicIdentifier,
+  recoverAddressFromChannelMessage,
+} from "@connext/vector-utils";
 import {
   CreateTransferParams,
   ResolveTransferParams,
@@ -21,12 +25,15 @@ import {
   IMessagingService,
   DEFAULT_FEE_EXPIRY,
   SetupParams,
+  IVectorChainService,
+  IEngineStore,
 } from "@connext/vector-types";
 import { BigNumber } from "@ethersproject/bignumber";
 import { AddressZero } from "@ethersproject/constants";
 import { getAddress } from "@ethersproject/address";
 
 import { ParameterConversionError } from "./errors";
+import { isCrosschainTransfer } from "./listeners";
 
 export async function convertSetupParams(
   params: EngineParams.Setup,
@@ -198,11 +205,79 @@ export async function convertConditionalTransferParams(
   });
 }
 
-export function convertResolveConditionParams(
+export async function convertResolveConditionParams(
   params: EngineParams.ResolveTransfer,
   transfer: FullTransferState,
-): Result<ResolveTransferParams, EngineError> {
+  signer: IChannelSigner,
+  chainAddresses: ChainAddresses,
+  chainService: IVectorChainReader,
+  store: IEngineStore,
+): Promise<Result<ResolveTransferParams, EngineError>> {
   const { channelAddress, transferResolver, meta } = params;
+
+  // special case for crosschain transfer
+  // we need to generate a separate sig for withdrawal commitment since the transfer resolver may have gotten forwarded
+  // and needs to be regenerated for this leg of the transfer
+  const isCrossChain = await isCrosschainTransfer(transfer, chainAddresses, chainService);
+  if (isCrossChain.getValue()) {
+    // first check if the provided sig is valid. in the case of the receiver directly resolving the withdrawal, it will
+    // be valid already
+    let channel: FullChannelState | undefined;
+    try {
+      channel = await store.getChannelState(transfer.channelAddress);
+    } catch (e) {
+      return Result.fail(
+        new ParameterConversionError(
+          ParameterConversionError.reasons.ChannelNotFound,
+          transfer.channelAddress,
+          signer.publicIdentifier,
+          {
+            getChannelStateError: jsonifyError(e),
+          },
+        ),
+      );
+    }
+    if (!channel) {
+      return Result.fail(
+        new ParameterConversionError(
+          ParameterConversionError.reasons.ChannelNotFound,
+          transfer.channelAddress,
+          signer.publicIdentifier,
+        ),
+      );
+    }
+    const {
+      transferState: { nonce, initiatorSignature, fee, callTo, callData },
+      balance,
+    } = transfer;
+    const withdrawalAmount = balance.amount.reduce((prev, curr) => prev.add(curr), BigNumber.from(0)).sub(fee);
+    const commitment = new WithdrawCommitment(
+      channel.channelAddress,
+      channel.alice,
+      channel.bob,
+      signer.address,
+      transfer.assetId,
+      withdrawalAmount.toString(),
+      nonce,
+      callTo,
+      callData,
+    );
+    let recovered: string;
+    try {
+      recovered = await recoverAddressFromChannelMessage(commitment.hashToSign(), transferResolver.responderSignature);
+    } catch (e) {
+      recovered = e.message;
+    }
+
+    // if it is not valid, regenerate the sig, otherwise use the provided one
+    if (recovered !== channel.alice && recovered !== channel.bob) {
+      // Generate your signature on the withdrawal commitment
+      transferResolver.responderSignature = await signer.signMessage(commitment.hashToSign());
+    }
+    await commitment.addSignatures(initiatorSignature, transferResolver.responderSignature);
+    // Store the double signed commitment
+    await store.saveWithdrawalCommitment(transfer.transferId, commitment.toJson());
+  }
 
   return Result.ok({
     channelAddress,
