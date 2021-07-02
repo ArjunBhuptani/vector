@@ -3,6 +3,7 @@ import { EtherSymbol, Zero } from "@ethersproject/constants";
 import { formatEther, parseEther } from "@ethersproject/units";
 import { deployments, ethers, getNamedAccounts, getChainId, network } from "hardhat";
 import { DeployFunction } from "hardhat-deploy/types";
+import { BIG_GAS_LIMIT } from "../src.ts/services/ethService";
 
 import { registerTransfer } from "../src.ts/utils";
 import { logger } from "../src.ts/constants";
@@ -40,20 +41,22 @@ const func: DeployFunction = async () => {
       ),
     );
     log.info(`Deploying ${name} with args [${processedArgs.join(", ")}]`);
+    log.info("await deployments.deploy(name");
     await deployments.deploy(name, {
       from: deployer,
       args: processedArgs,
-      /*
-      gasLimit: deployTx.gasLimit && BigNumber.from(deployTx.gasLimit).lt(MIN_GAS_LIMIT)
-        ? MIN_GAS_LIMIT
-        : undefined,
-      */
+      gasLimit: BIG_GAS_LIMIT,
     });
+    log.info("await deployments.get");
     const deployment = await deployments.get(name);
+    log.info("if !deployment.transactionHash");
     if (!deployment.transactionHash) {
       throw new Error(`Failed to deploy ${name}`);
     }
+
+    log.info("await ethers.provider.getTransaction");
     const tx = await ethers.provider.getTransaction(deployment.transactionHash!);
+    log.info("ethers.provider.getTransactionReceipt");
     const receipt = await ethers.provider.getTransactionReceipt(deployment.transactionHash!);
     log.info(`Sent transaction to deploy ${name}, txHash: ${deployment.transactionHash}`);
     log.info(

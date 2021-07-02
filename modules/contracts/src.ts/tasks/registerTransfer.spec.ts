@@ -6,7 +6,7 @@ import { deployments } from "hardhat";
 import { alice } from "../constants";
 import { getContract, registerTransfer } from "../utils";
 
-describe("registerTransfer", function() {
+describe("registerTransfer", function () {
   this.timeout(120_000);
   let registry: Contract;
 
@@ -15,7 +15,7 @@ describe("registerTransfer", function() {
     registry = await getContract("TransferRegistry", alice);
   });
 
-  it("should registry a new transfer", async () => {
+  it("should register a new transfer", async () => {
     expect(registry.address).to.be.a("string");
     await expect(registerTransfer(TransferNames.HashlockTransfer, alice.address)).to.be.fulfilled;
   });
