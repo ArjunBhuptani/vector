@@ -8,9 +8,9 @@ project=$(grep -m 1 '"name":' "$root/package.json" | cut -d '"' -f 4)
 docker swarm init 2> /dev/null || true
 docker network create --attachable --driver overlay "$project" 2> /dev/null || true
 
-if grep -qs "$stack" <<<"$(docker stack ls --format '{{.Name}}')"
-then echo "A $stack stack is already running" && exit 0;
-fi
+#if grep -qs "$stack" <<<"$(docker stack ls --format '{{.Name}}')"
+#then echo "A $stack stack is already running" && exit 0;
+#fi
 
 ####################
 # Load config
@@ -212,8 +212,9 @@ fi
 ########################################
 ## Router config
 
-router_internal_port="8000"
-router_public_port="9000"
+router_internal_port="9002"
+# change so it dosen't conflict with portainer (revert)
+router_public_port="9002"
 public_url="http://127.0.0.1:$router_public_port/ping"
 if [[ $production == "true" ]]
 then

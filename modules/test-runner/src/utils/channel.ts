@@ -44,7 +44,7 @@ export const advanceBlocktime = async (seconds: number, provider = provider1): P
   }
 };
 
-export const setup = async (
+export const  setup = async (
   bobService: INodeService,
   aliceService: INodeService,
   chainId: number,

@@ -1,0 +1,434 @@
+version: '3.8'
+
+networks:
+  vector:
+  vector1:
+  
+volumes:
+  database_node:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+  database_router0:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+  database_node1:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+  database_carol:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+  database_dave:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+  database_router1:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs  
+
+services:
+
+  node:
+    networks:
+      - 'vector'
+    logging:
+      driver: 'json-file'
+      options:
+          max-size: '10m'
+    image: 'connextproject/vector_node:0.2.5-beta.16'
+    restart: always
+    ports:
+      - '8002:8000'  
+    environment:
+      VECTOR_CONFIG: '{
+  "adminToken": "cxt1234",
+  "chainAddresses": {},
+  "chainProviders": {
+    "5": "https://goerli.infura.io/v3/af2f28bdb95d40edb06226a46106f5f9",
+    "4": "https://rinkeby.infura.io/v3/af2f28bdb95d40edb06226a46106f5f9"
+  },
+  "logLevel": "info",
+  "messagingUrl": "https://messaging.connext.network",
+  "production": true,
+  "allowedSwaps": [
+    {
+      "fromChainId": 4,
+      "toChainId": 5,
+      "fromAssetId": "0x0000000000000000000000000000000000000000",
+      "toAssetId": "0x0000000000000000000000000000000000000000",
+      "priceType": "hardcoded",
+      "hardcodedRate": "1"
+    }
+  ],
+  "rebalanceProfiles": [
+    {
+      "chainId": 4,
+      "assetId": "0x0000000000000000000000000000000000000000",
+      "reclaimThreshold": "1",
+      "target": "0",
+      "collateralizeThreshold": "0"
+    }
+  ]
+}'
+      VECTOR_PROD: 'true'
+      VECTOR_MNEMONIC: 'glad focus asset predict monkey worth way talk unhappy hazard area squeeze'
+#      Address: '0x36e6dEdC5554b2e1fedFb1627Be4D703f0da2B6D'
+      VECTOR_PG_DATABASE: 'vector'
+      VECTOR_PG_HOST: 'database-node'
+      VECTOR_PG_PASSWORD: 'vector'
+      VECTOR_PG_PORT: '5432'
+      VECTOR_PG_USERNAME: 'vector'
+
+  router:
+    networks:
+      - 'vector'
+    logging:
+      driver: 'json-file'
+      options:
+          max-size: '10m'
+    image: 'connextproject/vector_router:0.2.5-beta.16'
+    environment:
+      VECTOR_CONFIG: '{
+  "adminToken": "cxt1234",
+  "chainAddresses": {},
+  "chainProviders": {
+    "5": "https://goerli.infura.io/v3/af2f28bdb95d40edb06226a46106f5f9",
+    "4": "https://rinkeby.infura.io/v3/af2f28bdb95d40edb06226a46106f5f9"
+  },
+  "logLevel": "info",
+  "messagingUrl": "https://messaging.connext.network",
+  "production": true,
+  "allowedSwaps": [
+    {
+      "fromChainId": 4,
+      "toChainId": 5,
+      "fromAssetId": "0x0000000000000000000000000000000000000000",
+      "toAssetId": "0x0000000000000000000000000000000000000000",
+      "priceType": "hardcoded",
+      "hardcodedRate": "1"
+    }
+  ],
+  "rebalanceProfiles": [
+    {
+      "chainId": 4,
+      "assetId": "0x0000000000000000000000000000000000000000",
+      "reclaimThreshold": "1",
+      "target": "0",
+      "collateralizeThreshold": "0"
+    }
+  ]
+}'
+      VECTOR_PROD: 'true'
+      VECTOR_NODE_URL: 'http://node:8000'
+      VECTOR_PG_DATABASE: 'vector'
+      VECTOR_PG_HOST: 'database-router0'
+      VECTOR_PG_PASSWORD: 'vector'
+      VECTOR_PG_PORT: '5432'
+      VECTOR_PG_USERNAME: 'vector'
+      VECTOR_MNEMONIC: 'glad focus asset predict monkey worth way talk unhappy hazard area squeeze'
+      
+  database-node:
+    volumes:
+      - database_node:/var/lib/postgresql/data
+    networks:
+      - 'vector'
+    logging:
+      driver: 'json-file'
+      options:
+          max-size: '10m'
+    image: 'vector_database:latest'
+
+    environment:
+      AWS_ACCESS_KEY_ID: ''
+      AWS_SECRET_ACCESS_KEY: ''
+      POSTGRES_DB: 'vector'
+      POSTGRES_PASSWORD: 'vector'
+      POSTGRES_PASSWORD_FILE: ''
+      POSTGRES_USER: 'vector'
+      VECTOR_ADMIN_TOKEN: 'cxt1234'
+      VECTOR_PROD: 'true'
+      
+  database-router0:
+    volumes:
+      - database_router0:/var/lib/postgresql/data
+    networks:
+      - 'vector'
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+    image: 'vector_database:latest'
+
+    environment:
+      AWS_ACCESS_KEY_ID: ''
+      AWS_SECRET_ACCESS_KEY: ''
+      POSTGRES_DB: 'vector'
+      POSTGRES_PASSWORD: 'vector'
+      POSTGRES_PASSWORD_FILE: ''
+      POSTGRES_USER: 'vector'
+      VECTOR_ADMIN_TOKEN: 'cxt1234'
+      VECTOR_PROD: 'true'
+
+  node1:
+    networks:
+      - 'vector1'
+    logging:
+      driver: 'json-file'
+      options:
+          max-size: '10m'
+    image: 'connextproject/vector_node:0.2.5-beta.16'
+    restart: always
+    ports:
+      - '8014:8000'  
+    environment:
+      VECTOR_CONFIG: '{
+  "adminToken": "cxt1234",
+  "chainAddresses": {},
+  "chainProviders": {
+    "5": "https://goerli.infura.io/v3/af2f28bdb95d40edb06226a46106f5f9",
+    "4": "https://rinkeby.infura.io/v3/af2f28bdb95d40edb06226a46106f5f9"
+
+  },
+  "logLevel": "info",
+  "messagingUrl": "https://messaging.connext.network",
+  "production": true,
+  "allowedSwaps": [
+    {
+      "fromChainId": 4,
+      "toChainId": 4,
+      "fromAssetId": "0x0000000000000000000000000000000000000000",
+      "toAssetId": "0x0000000000000000000000000000000000000000",
+      "priceType": "hardcoded",
+      "hardcodedRate": "1"
+    }
+  ],
+  "rebalanceProfiles": [
+    {
+      "chainId": 4,
+      "assetId": "0x0000000000000000000000000000000000000000",
+      "reclaimThreshold": "1",
+      "target": "0",
+      "collateralizeThreshold": "0"
+    }
+  ]
+}'
+      VECTOR_PROD: 'true'
+      VECTOR_MNEMONIC: 'program biology gasp gentle describe boring suspect raven favorite uphold salon crater'
+#      Addresss : 0xE3E44bd168C03393d9Ef2E8B304686023E2ca233
+      VECTOR_PG_DATABASE: 'vector'
+      VECTOR_PG_PASSWORD: 'vector'
+      VECTOR_PG_PORT: '5432'
+      VECTOR_PG_USERNAME: 'vector'
+      
+
+  router1:
+    networks:
+      - 'vector1'
+    logging:
+      driver: 'json-file'
+      options:
+          max-size: '10m'
+    image: 'connextproject/vector_router:0.2.5-beta.16'
+    environment:
+      VECTOR_CONFIG: '{
+  "adminToken": "cxt1234",
+  "chainAddresses": {},
+  "chainProviders": {
+    "4": "https://rinkeby.infura.io/v3/af2f28bdb95d40edb06226a46106f5f9",
+    "5": "https://goerli.infura.io/v3/af2f28bdb95d40edb06226a46106f5f9"
+  },
+  "logLevel": "info",
+  "messagingUrl": "https://messaging.connext.network",
+  "production": true,
+  "allowedSwaps": [
+    {
+      "fromChainId": 4,
+      "toChainId": 5,
+      "fromAssetId": "0x0000000000000000000000000000000000000000",
+      "toAssetId": "0x0000000000000000000000000000000000000000",
+      "priceType": "hardcoded",
+      "hardcodedRate": "1"
+    }
+  ],
+  "rebalanceProfiles": [
+    {
+      "chainId": 4,
+      "assetId": "0x0000000000000000000000000000000000000000",
+      "reclaimThreshold": "1",
+      "target": "0",
+      "collateralizeThreshold": "0"
+    },
+     {
+      "chainId": 5,
+      "assetId": "0x0000000000000000000000000000000000000000",
+      "reclaimThreshold": "1",
+      "target": "0",
+      "collateralizeThreshold": "0"
+    }
+  ]
+}'
+      VECTOR_PROD: 'true'
+      VECTOR_NODE_URL: 'http://node1:8000'
+      VECTOR_PG_DATABASE: 'vector'
+      VECTOR_PG_HOST: 'database-router1'
+      VECTOR_PG_PASSWORD: 'vector'
+      VECTOR_PG_PORT: '5432'
+      VECTOR_PG_USERNAME: 'vector'
+      VECTOR_MNEMONIC: 'program biology gasp gentle describe boring suspect raven favorite uphold salon crater'
+      #      Addresss : 0xE3E44bd168C03393d9Ef2E8B304686023E2ca233
+
+
+  database-node1:
+    volumes:
+      - database_node1:/var/lib/postgresql/data
+    networks:
+      - 'vector1'
+    logging:
+      driver: 'json-file'
+      options:
+          max-size: '10m'
+
+    image: 'vector_database:latest'
+ 
+    environment:
+      AWS_ACCESS_KEY_ID: ''
+      AWS_SECRET_ACCESS_KEY: ''
+      POSTGRES_DB: 'vector'
+      POSTGRES_PASSWORD: 'vector'
+      POSTGRES_PASSWORD_FILE: ''
+      POSTGRES_USER: 'vector'
+      VECTOR_ADMIN_TOKEN: 'cxt1234'
+      VECTOR_PROD: 'true'          
+#
+  database-router1:
+    volumes:
+      - database_router1:/var/lib/postgresql/data
+    networks:
+      - 'vector1'
+    logging:
+      driver: 'json-file'
+      options:
+          max-size: '10m'
+    image: 'vector_database:latest'
+
+    environment:
+      AWS_ACCESS_KEY_ID: ''
+      AWS_SECRET_ACCESS_KEY: ''
+      POSTGRES_DB: 'vector'
+      POSTGRES_PASSWORD: 'vector'
+      POSTGRES_PASSWORD_FILE: ''
+      POSTGRES_USER: 'vector'
+      VECTOR_ADMIN_TOKEN: 'cxt1234'
+      VECTOR_PROD: 'true'
+
+
+  carol_node:
+    networks:
+      - 'vector1'
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+    image: 'connextproject/vector_node:0.2.5-beta.16'
+    restart: always
+    ports:
+      - '8004:8000'
+    environment:
+      VECTOR_CONFIG: '{
+  "adminToken": "cxt1234",
+  "chainAddresses": {},
+  "chainProviders": {
+    "5": "https://goerli.infura.io/v3/af2f28bdb95d40edb06226a46106f5f9",
+    "4": "https://rinkeby.infura.io/v3/af2f28bdb95d40edb06226a46106f5f9"
+  },
+  "logLevel": "info",
+  "messagingUrl": "https://messaging.connext.network",
+  "production": true
+}'
+      VECTOR_PROD: 'true'
+      VECTOR_MNEMONIC: 'hood path despair ranch version fiber hope people wise angle avocado suit'
+#      Address: '0x6D9B09e55e6341B019eB5CB05067d51cb058D788'
+      VECTOR_PG_DATABASE: 'vector'
+      VECTOR_PG_HOST: 'database_carol'
+      VECTOR_PG_PASSWORD: 'vector'
+      VECTOR_PG_PORT: '5432'
+      VECTOR_PG_USERNAME: 'vector'
+
+  database_carol:
+    volumes:
+      - database_carol:/var/lib/postgresql/data
+    networks:
+      - 'vector1'
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+    image: 'vector_database:latest'
+
+    environment:
+      AWS_ACCESS_KEY_ID: ''
+      AWS_SECRET_ACCESS_KEY: ''
+      POSTGRES_DB: 'vector'
+      POSTGRES_PASSWORD: 'vector'
+      POSTGRES_PASSWORD_FILE: ''
+      POSTGRES_USER: 'vector'
+      VECTOR_ADMIN_TOKEN: 'cxt1234'
+      VECTOR_PROD: 'true'
+
+  dave_node:
+    networks:
+      - 'vector'
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+    image: 'connextproject/vector_node:0.2.5-beta.16'
+    restart: always
+    ports:
+      - '8005:8000'
+    environment:
+      VECTOR_CONFIG: '{
+  "adminToken": "cxt1234",
+  "chainAddresses": {},
+  "chainProviders": {
+    "5": "https://goerli.infura.io/v3/af2f28bdb95d40edb06226a46106f5f9",
+    "4": "https://rinkeby.infura.io/v3/af2f28bdb95d40edb06226a46106f5f9"
+  },
+  "logLevel": "info",
+  "messagingUrl": "https://messaging.connext.network",
+  "production": true
+}'
+      VECTOR_PROD: 'true'
+      VECTOR_MNEMONIC: 'apart tomorrow mango disorder amused dutch number fruit canvas hold august raise'
+#      Address: '0xA383539Ae895Db1ABF4F6381eB082455366CF93c'
+
+      VECTOR_PG_DATABASE: 'vector'
+      VECTOR_PG_HOST: 'database_dave'
+      VECTOR_PG_PASSWORD: 'vector'
+      VECTOR_PG_PORT: '5432'
+      VECTOR_PG_USERNAME: 'vector'
+
+  database_dave:
+    volumes:
+      - database_dave:/var/lib/postgresql/data
+    networks:
+      - 'vector'
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+    image: 'vector_database:latest'
+
+    environment:
+      AWS_ACCESS_KEY_ID: ''
+      AWS_SECRET_ACCESS_KEY: ''
+      POSTGRES_DB: 'vector'
+      POSTGRES_PASSWORD: 'vector'
+      POSTGRES_PASSWORD_FILE: ''
+      POSTGRES_USER: 'vector'
+      VECTOR_ADMIN_TOKEN: 'cxt1234'
+      VECTOR_PROD: 'true'
